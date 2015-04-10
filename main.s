@@ -1,8 +1,9 @@
 .data
 test_str:
     .string "aba!aba"
-test_len:
-    .long . - test_str - 2
+    
+len:
+    .long 0
 msg:
     .asciz "Hello, world!\n"
     
@@ -76,14 +77,16 @@ print_char:
 is_palindrome:
     pushl %ecx
     pushl %ebx
+    pushl %edx
     
-    call print_str
-    movl test_len, %ebx
+    movl len, %ebx
     movl %ebx, right
+    decl right
     
     movl $50,  %ecx
     loop_begin:
         push %ecx
+        /*
       #выведем счетчики left и right  
         push %eax
         
@@ -93,48 +96,39 @@ is_palindrome:
         call print_num
 
         pop %eax
+        */
         
-        call print_str
-        xorl %edx, %edx
-        
-        movl %eax, %ebx
-        
-        xorl %eax, %eax
+      #получим символ в строке с номером left, результат в %dl
         movl left, %ecx
-        movb (%ebx, %ecx), %dl
-        movb %dl, %al
-    
-        #call print_char
+        movb (%eax, %ecx), %dl
         
-        xorl %eax, %eax
+      #получим символ в строке с номером right, результат в %dh
         movl right, %ecx
-        movb (%ebx, %ecx), %dh
-        movb %dh, %al
-        #call print_char
-        
+        movb (%eax, %ecx), %dh
+      
+      #если не совпали, то строка не палиндром  
         cmpb %dl, %dh
         jne _fail_palindrome
-        
-        mov %ebx, %eax
 
         incl left
         decl right
         
         popl %ecx
-        movl left, %ebx 
+        movl left, %ebx
         cmp right, %ebx
-        #loop loop_begin 
-        jbe loop_begin
+        jb loop_begin
     
     mov $1, %eax
     jmp _exit_palindrome
+    
 _fail_palindrome:
     mov $0, %eax
     popl %ecx
+    
 _exit_palindrome:
+    popl %edx
     popl %ebx
     popl %ecx
-    
     ret
 #END OF is_palindrome
 
@@ -156,16 +150,28 @@ read_str:
 
 main:
     movl %esp, %ebp #for correct debugging
-  #печать строки "Hello World!"
-    movl $msg, %eax
-    call print_str
     
   #считать строку из stdin
     movl $str1, %eax
     call read_str
+    mov $0, %eax
+    mov $str1, %ecx
+  #узнаем размер считаной строки
+_str_len:
+    movb (%ecx, %eax), %bl
+    cmp $0, %bl
+    jne _not_zero
+    jmp _str_len_end
+_not_zero:
+    incl %eax
+    jmp _str_len
+_str_len_end:
+    call print_num  
+    movl %eax, len
     
   #проверка на палиндром
     mov $str1, %eax
+    call print_str
     call is_palindrome  
     call print_num
     
@@ -181,4 +187,3 @@ str1:
     
 str2:
     .space 256
-
