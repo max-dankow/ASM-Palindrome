@@ -339,13 +339,13 @@ _loop_find_env:
     
   #если NULL, то завершаем поиск -> MAX_BUF не найден  
     cmpl $0, %eax
-    je _main_loop
+    je _args
     
   #сравниваем с "MAX_BUF"
     pushl %ebx
     pushl %edx
     
-    pushl $8
+    pushl $7
     pushl %eax
     pushl $env_name
     call strncmp
@@ -363,12 +363,13 @@ _loop_find_env:
     mov (%ebx, %edx), %eax
     
   #получаем ее значение
-    addl $9, %eax
+    addl $8, %eax
     pushl %eax
     call atoi
     popl %ebx
     movl %eax, buf_size
-   
+
+_args:
   #получем параметры командной строки
     movl 4(%ebp), %eax
     cmp $1, %eax
@@ -433,6 +434,7 @@ _continue_main:
     jmp _main_loop
     
 _exit:
+   #для наглядности напечатаем размер динамического буфера
     movl buf_size, %eax
     call print_num
     
