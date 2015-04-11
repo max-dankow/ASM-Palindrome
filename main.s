@@ -198,7 +198,7 @@ _exit_palindrome:
 
 /*******************************************************************
     Считать строку по адресу (%eax) из stdin.
-    В %eax помещает длину строки.
+    В %eax помещает длину строки. В %edx помещает адрес считаной строки
 *******************************************************************/
 read_str:
     pushl %ebx
@@ -274,6 +274,12 @@ _read_char_loop:
 _check_dynamic_limit:
     cmpl buf_size, %ebx
     jle _stay
+    
+  #освободим память
+    pushl %edx
+    call free
+    popl %edx
+    
   #выводим сообщение о переполнении
     movl $owerflow_msg, %eax
     call print_str
@@ -315,14 +321,23 @@ _main_loop:
   #проверка на палиндром
     movl %edx, %eax
     movl len, %ebx
+    pushl %edx
     call print_str
     call is_palindrome  
     call print_num
+    popl %edx
     
-    /*
-    free if dynamic
-    */
+  #если использовался буфер...
+    mov dynamic_flag, %eax
+    cmpl $1, %eax
+    jne _continue_main
     
+  #то вызываем free
+    pushl %edx
+    call free
+    popl %edx
+    
+_continue_main:
     jmp _main_loop
     
 _exit:
