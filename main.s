@@ -1,17 +1,7 @@
 .data
-test_str:
-    .string "aba!aba"
-    
-len:
+ 
+len:#длинна введенной строки
     .long 0
-msg:
-    .asciz "Hello, world!\n"
-    
-format:
-    .string "Num = %ld\n"
-    
-number:
-    .long 10
     
 left:
     .long 0
@@ -72,18 +62,23 @@ print_char:
 
 
 /******************************************************************
-    Проверяет строку, адрес которой записан в %eax, на палиндром.
+    Проверяет строку, адрес которой записан в %eax, на палиндром. 
+    //Длина строки == %ebx
 ******************************************************************/
 is_palindrome:
     pushl %ecx
     pushl %ebx
     pushl %edx
     
+  #левый счетчик = 0
+    movl $0, %ebx
+    movl %ebx, left
+    
+  #правый счетчик = длинна строки - 1  
     movl len, %ebx
     movl %ebx, right
     decl right
-    
-    movl $50,  %ecx
+
     loop_begin:
         push %ecx
         /*
@@ -114,9 +109,10 @@ is_palindrome:
         decl right
         
         popl %ecx
+      #продолжаем сравнение если left < right
         movl left, %ebx
         cmp right, %ebx
-        jb loop_begin
+        jl loop_begin
     
     mov $1, %eax
     jmp _exit_palindrome
@@ -139,24 +135,39 @@ _exit_palindrome:
 format_str_in:
     .string "%s"
 read_str:
+    pushl %ebx
+    
     pushl %eax
     pushl $format_str_in
-    call scanf
+    call scanf #в %eax лежит код, возвращаемый scanf'ом
 
-    popl %eax
-    popl %eax
+    popl %ebx
+    popl %ebx
+    
+    popl %ebx
     ret
 #END OF read_str
 
 main:
     movl %esp, %ebp #for correct debugging
-    
+
+_main_loop:
   #считать строку из stdin
     movl $str1, %eax
     call read_str
+    
+    cmpl $1, %eax
+    jne _exit
+    
+    #call print_num
+    /*
     mov $0, %eax
     mov $str1, %ecx
-  #узнаем размер считаной строки
+    */
+  #узнаем размер считаной строки 
+    pushl $str1
+    call strlen
+    /*
 _str_len:
     movb (%ecx, %eax), %bl
     cmp $0, %bl
@@ -166,7 +177,8 @@ _not_zero:
     incl %eax
     jmp _str_len
 _str_len_end:
-    call print_num  
+    */
+    #call print_num  
     movl %eax, len
     
   #проверка на палиндром
@@ -175,6 +187,9 @@ _str_len_end:
     call is_palindrome  
     call print_num
     
+    jmp _main_loop
+    
+_exit:
   #выход из программы
     addl $4, %esp
     xorl %eax, %eax
