@@ -6,11 +6,29 @@ weak_flag:#флаг проверки слабых палиндромов
 len:#длинна введенной строки
     .long 0
     
+static_limit:#строку не долее такой длины можно хранить в статической памяти
+    .long 10#для тестирования
+    
+dynamic_flag:#показывает где сейчас находится строка, в сттической или динамической памяти
+    .long 0#изначально в статической
+    
+buf_size:#размер динамического буфера
+    .long 20#для отладки
+    
 left:
     .long 0
     
 right:
     .long 0
+    
+owerflow_msg:
+    .string "ERROR: Buffer owerflow."
+    
+move_msg:
+    .string "Moved to dynamic buffer."
+            
+str1:
+    .space 10
     
 .text
     .global main # entry point
@@ -45,22 +63,6 @@ print_num:
     popl %eax
     ret
 #END OF print_num   
-
-
-/******************************************************************
-    Выводит символ %al в stdout
-******************************************************************/
-format_str_char:
-    .string "%c\n"
-print_char:
-    pushw %ax
-    pushl $format_str_char
-    call printf
-
-    popl %eax
-    popw %ax
-    ret
-#END OF print_num  
 
 
 /*******************************************************************
@@ -127,12 +129,9 @@ _ret_get_index:
 is_palindrome:
     pushl %ecx
     pushl %ebx
-    pushl %edx
     
-  #правый счетчик = длинна строки - 1  
+  #инициализиуем счетчики left и right 
     movl %ebx, right
-    
-  #левый счетчик = 0
     movl $-1, %ebx
     movl %ebx, left
     
@@ -191,7 +190,6 @@ _fail_palindrome:
     popl %ecx
     
 _exit_palindrome:
-    popl %edx
     popl %ebx
     popl %ecx
     ret
@@ -203,8 +201,11 @@ _exit_palindrome:
     В %eax помещает длину строки.
 *******************************************************************/
 read_str:
-    pushl %edx
     pushl %ebx
+    pushl %ecx
+    
+    movl $0, %ebx
+    movl %ebx, dynamic_flag
     
     xorl %ebx, %ebx
     movl %eax, %edx
@@ -222,16 +223,65 @@ _read_char_loop:
   #завершаем чтение, если  
   #встретили перевод строки
     cmpb $0x0a, %al
-    je _end_read
-  #или конец файла getc вернул -1
+    je _end_read_success
+  #или конец файла (getc вернул -1)
     cmpb $0xff, %al
     je _end_read_EOF
     
     movb %al, (%edx, %ebx)
     incl %ebx
+    
+  #если превысили стат. лимит...
+    cmp static_limit, %ebx
+    jle _stay
+    
+  #и если мы еще в статичской памяти...
+    movl dynamic_flag, %eax
+    cmp $1, %eax
+    je _check_dynamic_limit    
+    
+  #то пора переезжать в динамическую память
+  #вызываем malloc(buf_size)
+    pushl %edx
+    pushl buf_size
+    call malloc
+    pop %ecx
+    pop %edx
+    
+  #переместим в буфер то, что уже считали  
+    pushl %ebx
+    pushl %edx
+    pushl %eax
+    call memcpy
+    popl %eax
+    popl %edx
+    popl %ebx
+    
+    movl %eax, %edx
+    movl $1, %eax
+    movl %eax, dynamic_flag 
+    
+  #печатаем уведомление о переезде
+    movl $move_msg, %eax
+    pushl %edx
+    pushl %ebx
+    call print_str
+    popl %ebx
+    popl %edx
+    
+    jmp _stay
+  #проверка на переполение динамического буфера  
+_check_dynamic_limit:
+    cmpl buf_size, %ebx
+    jle _stay
+  #выводим сообщение о переполнении
+    movl $owerflow_msg, %eax
+    call print_str
+    jmp _end_read_EOF
+_stay:
     jmp _read_char_loop
 
-_end_read:
+_end_read_success:
   #размещаем в конце строки \0
     movb $0, %al
     movb %al, (%edx, %ebx) 
@@ -244,8 +294,8 @@ _end_read_EOF:
     mov $-1, %eax
     
 _exit_read:
+    popl %ecx
     popl %ebx
-    popl %edx
     ret
 #END OF read_str
 
@@ -263,24 +313,21 @@ _main_loop:
     movl %eax, len
     
   #проверка на палиндром
-    movl $str1, %eax
+    movl %edx, %eax
     movl len, %ebx
     call print_str
     call is_palindrome  
     call print_num
     
+    /*
+    free if dynamic
+    */
+    
     jmp _main_loop
     
 _exit:
-  #выход из программы
     addl $4, %esp
     xorl %eax, %eax
     call exit
     
 .bss
-
-str1:
-    .space 256
-    
-str2:
-    .space 256
