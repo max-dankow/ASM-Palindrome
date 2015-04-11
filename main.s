@@ -225,7 +225,7 @@ _read_char_loop:
     je _end_read
   #или конец файла getc вернул -1
     cmpb $0xff, %al
-    je _end_read
+    je _end_read_EOF
     
     movb %al, (%edx, %ebx)
     incl %ebx
@@ -238,7 +238,12 @@ _end_read:
     
   #возвращаем длину строки
     mov %ebx, %eax
+    jmp _exit_read
     
+_end_read_EOF:
+    mov $-1, %eax
+    
+_exit_read:
     popl %ebx
     popl %edx
     ret
@@ -252,7 +257,7 @@ _main_loop:
     call read_str
     movl %eax, len
     
-    cmpl $0, %eax
+    cmpl $-1, %eax
     je _exit
     
     movl %eax, len
