@@ -1,19 +1,19 @@
 .data
 
 weak_flag:#флаг проверки слабых палиндромов
-    .long 1#изначально нужно проверять 
+    .long 0#изначально не нужно проверять 
      
 len:#длинна введенной строки
     .long 0
     
-static_limit:#строку не долее такой длины можно хранить в статической памяти
-    .long 10#для тестирования
+static_limit:#строку не более чем такой длины можно хранить в статической памяти
+    .long 0x400#по условию 1 кб
     
-dynamic_flag:#показывает где сейчас находится строка, в сттической или динамической памяти
+dynamic_flag:#показывает где сейчас находится строка, в статической или динамической памяти
     .long 0#изначально в статической
     
 buf_size:#размер динамического буфера
-    .long 20#для отладки
+    .long 0x2000#по умолчанию 8 кб
     
 left:
     .long 0
@@ -24,11 +24,17 @@ right:
 owerflow_msg:
     .string "ERROR: Buffer owerflow."
     
+arg_msg:
+    .string "ERROR: Wrong parameters."
+    
 move_msg:
     .string "Moved to dynamic buffer."
+    
+key:
+    .string "-w"
             
 str1:
-    .space 10
+    .space 0x400
     
 .text
     .global main # entry point
@@ -307,6 +313,36 @@ _exit_read:
 
 main:
     movl %esp, %ebp #for correct debugging
+  #получем параметры командной строки
+    movl 4(%ebp), %eax
+    cmp $1, %eax
+    je _main_loop
+    
+    cmp $2, %eax
+    jg _wrong_arg
+    
+  #сравниваем параметр с -w
+    movl 8(%ebp), %eax
+    pushl $key
+    push 4(%eax)
+    call strcmp
+    
+    popl %ebx
+    popl %ebx
+    
+    cmp $0, %eax
+    jne _wrong_arg
+  #выставляем флаг слабого палиндрома в состояние "нужно искать"
+    movl $1, %eax
+    movl %eax, weak_flag
+    jmp _main_loop
+    
+_wrong_arg:
+    movl $arg_msg, %eax
+    call print_str
+    jmp _exit
+    
+    
 _main_loop:
   #считать строку из stdin
     movl $str1, %eax
