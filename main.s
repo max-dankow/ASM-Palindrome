@@ -70,13 +70,13 @@ get_next_index:
     pushl %edx
 
     movl weak_flag, %edx
-    cmp $0, %edx
-    jne _weak_left
+    cmp $1, %edx
+    je _weak_left
     
     incl %eax
     decl %ebx
     jmp _ret_get_index
-  #следует проверять на слабый палиндром
+  #передвинем счетчик left до слудующего значещего символа
 _weak_left:
     incl %eax
     
@@ -94,7 +94,8 @@ _weak_left:
   #запятая
     cmpb $0x2c, %dl
     je _weak_left
-
+    
+  #передвинем счетчик right до слудующего значещего символа
 _weak_right:
     decl %ebx
 
@@ -121,7 +122,7 @@ _ret_get_index:
 /******************************************************************
     Проверяет строку, адрес которой записан в %eax, на палиндром. 
     Длина строки должна быть записана в %ebx
-    Возвращает если палиндром -> 1, иначе -> 0
+    Если палиндром, то возвращает 1, иначе 0
 ******************************************************************/
 is_palindrome:
     pushl %ecx
@@ -130,11 +131,23 @@ is_palindrome:
     
   #правый счетчик = длинна строки - 1  
     movl %ebx, right
-    decl right
     
   #левый счетчик = 0
-    movl $0, %ebx
+    movl $-1, %ebx
     movl %ebx, left
+    
+  #получим первые значащие символы
+    pushl %eax
+      
+    movl %eax, %ecx
+    movl left, %eax
+    movl right, %ebx
+    call get_next_index
+        
+    movl %eax, left
+    movl %ebx, right
+        
+    popl %eax
 
     loop_begin:
         push %ecx
@@ -151,7 +164,7 @@ is_palindrome:
         cmpb %dl, %dh
         jne _fail_palindrome
         
-      #получим следующий значащий символ
+      #получим следующие значащие символы
         pushl %eax
       
         movl %eax, %ecx
