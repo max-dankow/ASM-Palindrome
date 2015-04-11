@@ -6,7 +6,7 @@ weak_flag:#флаг проверки слабых палиндромов
 len:#длинна введенной строки
     .long 0
     
-static_limit:#строку не более чем такой длины можно хранить в статической памяти
+static_limit:#максималтная длина строки, которую допускается хранить в статической памяти
     .long 0x400#по условию 1 кб
     
 dynamic_flag:#показывает где сейчас находится строка, в статической или динамической памяти
@@ -34,9 +34,9 @@ key:
     .string "-w"
     
 env_name:
-    .string "BUF_SIZE"
+    .string "MAX_BUF"
             
-str1:
+current_str:
     .space 0x400
     
 .text
@@ -80,6 +80,7 @@ print_num:
 *******************************************************************/
 get_next_index:
     pushl %edx
+    pushl %ecx
 
     movl weak_flag, %edx
     cmp $1, %edx
@@ -103,7 +104,7 @@ _weak_left:
   #точка
     cmpb $0x2e, %dl
     je _weak_left
-  #запятая
+  #зап_ret_get_indexятая
     cmpb $0x2c, %dl
     je _weak_left
     
@@ -127,6 +128,7 @@ _weak_right:
     je _weak_right
     
 _ret_get_index:
+    popl %ecx
     popl %edx
     ret
 #END of get_next_index
@@ -207,8 +209,9 @@ _exit_palindrome:
 
 
 /*******************************************************************
-    Считать строку по адресу (%eax) из stdin.
-    В %eax помещает длину строки. В %edx помещает адрес считаной строки
+    Считывает строку по адресу (%eax) из stdin.
+    В %eax возвращает длину строки. 
+    В %edx помещает адрес считаной строки
 *******************************************************************/
 read_str:
     pushl %ebx
@@ -255,7 +258,7 @@ _read_char_loop:
     pushl %edx
     pushl buf_size
     call malloc
-    pop %ecx
+    pop %edx
     pop %edx
     
   #переместим в буфер то, что уже считали  
@@ -266,12 +269,13 @@ _read_char_loop:
     popl %eax
     popl %edx
     popl %ebx
-    
+  
+  #обновим адрес строки, установим флаг 'строка в динамическом буфере'  
     movl %eax, %edx
     movl $1, %eax
     movl %eax, dynamic_flag 
     
-  #печатаем уведомление о переезде
+  #печатаем уведомление о 'переезде'
     movl $move_msg, %eax
     pushl %edx
     pushl %ebx
@@ -284,7 +288,7 @@ _read_char_loop:
 _check_dynamic_limit:
     cmpl buf_size, %ebx
     jle _stay
-    
+  #случилось переполнение динамического буфера  
   #освободим память
     pushl %edx
     call free
@@ -315,30 +319,29 @@ _exit_read:
     ret
 #END OF read_str
 
+
+/*******************************************************************
+    Основная программа
+*******************************************************************/
 main:
     movl %esp, %ebp #for correct debugging
     
+  #ищем MAX_BUF среди переменных окружения  
     movl environ, %ebx
     
+  #%edx счетчик,  пробегающий все строки из environ
     movl $-4, %edx
 _loop_find_env:
-    #push $env_name
-    
     addl $4, %edx
+    
+  #получаем очередную строку
     movl (%ebx, %edx), %eax
     
+  #если NULL, то завершаем поиск -> MAX_BUF не найден  
     cmpl $0, %eax
     je _main_loop
     
-    pushl %ebx
-    pushl %edx
-    
-    call print_str
-    
-    popl %edx
-    popl %ebx
-    
-  #сравниваем с "BUF_SIZE"
+  #сравниваем с "MAX_BUF"
     pushl %ebx
     pushl %edx
     
@@ -356,16 +359,16 @@ _loop_find_env:
     cmpl $0, %eax
     jne _loop_find_env
     
+  #нашли переменную MAX_BUF  
     mov (%ebx, %edx), %eax
     
+  #получаем ее значение
     addl $9, %eax
     pushl %eax
     call atoi
     popl %ebx
     movl %eax, buf_size
-    call print_num
    
-    
   #получем параметры командной строки
     movl 4(%ebp), %eax
     cmp $1, %eax
@@ -397,10 +400,8 @@ _wrong_arg:
     jmp _exit
     
 _main_loop:
-    movl buf_size, %eax
-    call print_num
-  #считать строку из stdin
-    movl $str1, %eax
+  #читаем строку из stdin
+    movl $current_str, %eax
     call read_str
     movl %eax, len
     
@@ -414,7 +415,7 @@ _main_loop:
     movl len, %ebx
     pushl %edx
     call print_str
-    call is_palindrome  
+    call is_palindrome
     call print_num
     popl %edx
     
@@ -432,6 +433,8 @@ _continue_main:
     jmp _main_loop
     
 _exit:
-    addl $4, %esp
+    movl buf_size, %eax
+    call print_num
+    
     xorl %eax, %eax
     call exit
