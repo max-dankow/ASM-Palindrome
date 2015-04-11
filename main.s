@@ -1,5 +1,8 @@
 .data
- 
+
+weak_flag:#флаг проверки слабых палиндромов
+    .long 1#изначально нужно проверять 
+     
 len:#длинна введенной строки
     .long 0
     
@@ -26,7 +29,6 @@ print_str:
     popl %eax
     ret
 #END OF print_num 
-
 
 
 /******************************************************************
@@ -61,37 +63,81 @@ print_char:
 #END OF print_num  
 
 
+/*******************************************************************
+    %eax = left, %ebx = right, %ecx - адрес строки
+*******************************************************************/
+get_next_index:
+    pushl %edx
+
+    movl weak_flag, %edx
+    cmp $0, %edx
+    jne _weak_left
+    
+    incl %eax
+    decl %ebx
+    jmp _ret_get_index
+  #следует проверять на слабый палиндром
+_weak_left:
+    incl %eax
+    
+    cmp %ebx, %eax
+    jnl _ret_get_index
+    
+  #сравним символ строки с номером left c символами:
+    movb (%ecx, %eax), %dl
+  #пробел  
+    cmpb $0x20, %dl
+    je _weak_left
+  #точка
+    cmpb $0x2e, %dl
+    je _weak_left
+  #запятая
+    cmpb $0x2c, %dl
+    je _weak_left
+
+_weak_right:
+    decl %ebx
+
+    cmp %ebx, %eax
+    jnl _ret_get_index
+    
+  #сравним символ строки с номером right c символами:
+    movb (%ecx, %ebx), %dl
+  #пробел  
+    cmpb $0x20, %dl
+    je _weak_right
+  #точка  
+    cmpb $0x2e, %dl
+    je _weak_right
+  #запятая  
+    cmpb $0x2c, %dl
+    je _weak_right
+    
+_ret_get_index:
+    popl %edx
+    ret
+
+
 /******************************************************************
     Проверяет строку, адрес которой записан в %eax, на палиндром. 
-    //Длина строки == %ebx
+    Длина строки должна быть записана в %ebx
+    Возвращает если палиндром -> 1, иначе -> 0
 ******************************************************************/
 is_palindrome:
     pushl %ecx
     pushl %ebx
     pushl %edx
     
+  #правый счетчик = длинна строки - 1  
+    movl %ebx, right
+    decl right
+    
   #левый счетчик = 0
     movl $0, %ebx
     movl %ebx, left
-    
-  #правый счетчик = длинна строки - 1  
-    movl len, %ebx
-    movl %ebx, right
-    decl right
 
     loop_begin:
         push %ecx
-        /*
-      #выведем счетчики left и right  
-        push %eax
-        
-        movl left, %eax
-        call print_num
-        movl right, %eax
-        call print_num
-
-        pop %eax
-        */
         
       #получим символ в строке с номером left, результат в %dl
         movl left, %ecx
@@ -104,16 +150,26 @@ is_palindrome:
       #если не совпали, то строка не палиндром  
         cmpb %dl, %dh
         jne _fail_palindrome
-
-        incl left
-        decl right
         
+      #получим следующий значащий символ
+        pushl %eax
+      
+        movl %eax, %ecx
+        movl left, %eax
+        movl right, %ebx
+        call get_next_index
+        
+        movl %eax, left
+        movl %ebx, right
+        
+        popl %eax
         popl %ecx
       #продолжаем сравнение если left < right
         movl left, %ebx
         cmp right, %ebx
         jl loop_begin
-    
+  
+  #успех, вернем 1  
     mov $1, %eax
     jmp _exit_palindrome
     
@@ -130,59 +186,67 @@ _exit_palindrome:
 
 
 /*******************************************************************
-    Считать строку по адресу (%eax) из stdin
+    Считать строку по адресу (%eax) из stdin.
+    В %eax помещает длину строки.
 *******************************************************************/
-format_str_in:
-    .string "%s"
 read_str:
+    pushl %edx
     pushl %ebx
     
-    pushl %eax
-    pushl $format_str_in
-    call scanf #в %eax лежит код, возвращаемый scanf'ом
-
-    popl %ebx
+    xorl %ebx, %ebx
+    movl %eax, %edx
+_read_char_loop:
+    push %edx
+    push %ebx
+    
+    pushl stdin
+    call getc
     popl %ebx
     
     popl %ebx
+    popl %edx
+  
+  #завершаем чтение, если  
+  #встретили перевод строки
+    cmpb $0x0a, %al
+    je _end_read
+  #или конец файла getc вернул -1
+    cmpb $0xff, %al
+    je _end_read
+    
+    movb %al, (%edx, %ebx)
+    incl %ebx
+    jmp _read_char_loop
+
+_end_read:
+  #размещаем в конце строки \0
+    movb $0, %al
+    movb %al, (%edx, %ebx) 
+    
+  #возвращаем длину строки
+    mov %ebx, %eax
+    
+    popl %ebx
+    popl %edx
     ret
 #END OF read_str
 
 main:
     movl %esp, %ebp #for correct debugging
-
 _main_loop:
   #считать строку из stdin
     movl $str1, %eax
     call read_str
+    movl %eax, len
     
-    cmpl $1, %eax
-    jne _exit
+    cmpl $0, %eax
+    je _exit
     
-    #call print_num
-    /*
-    mov $0, %eax
-    mov $str1, %ecx
-    */
-  #узнаем размер считаной строки 
-    pushl $str1
-    call strlen
-    /*
-_str_len:
-    movb (%ecx, %eax), %bl
-    cmp $0, %bl
-    jne _not_zero
-    jmp _str_len_end
-_not_zero:
-    incl %eax
-    jmp _str_len
-_str_len_end:
-    */
-    #call print_num  
     movl %eax, len
     
   #проверка на палиндром
-    mov $str1, %eax
+    movl $str1, %eax
+    movl len, %ebx
     call print_str
     call is_palindrome  
     call print_num
