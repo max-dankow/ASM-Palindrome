@@ -32,6 +32,9 @@ move_msg:
     
 key:
     .string "-w"
+    
+env_name:
+    .string "BUF_SIZE"
             
 str1:
     .space 0x400
@@ -72,7 +75,8 @@ print_num:
 
 
 /*******************************************************************
-    %eax = left, %ebx = right, %ecx - адрес строки
+    Передвигает счетчики %eax (left) и %ebx (right) 
+    на следующий значащий символ строки с адресом %ecx.
 *******************************************************************/
 get_next_index:
     pushl %edx
@@ -125,7 +129,7 @@ _weak_right:
 _ret_get_index:
     popl %edx
     ret
-
+#END of get_next_index
 
 /******************************************************************
     Проверяет строку, адрес которой записан в %eax, на палиндром. 
@@ -313,6 +317,55 @@ _exit_read:
 
 main:
     movl %esp, %ebp #for correct debugging
+    
+    movl environ, %ebx
+    
+    movl $-4, %edx
+_loop_find_env:
+    #push $env_name
+    
+    addl $4, %edx
+    movl (%ebx, %edx), %eax
+    
+    cmpl $0, %eax
+    je _main_loop
+    
+    pushl %ebx
+    pushl %edx
+    
+    call print_str
+    
+    popl %edx
+    popl %ebx
+    
+  #сравниваем с "BUF_SIZE"
+    pushl %ebx
+    pushl %edx
+    
+    pushl $8
+    pushl %eax
+    pushl $env_name
+    call strncmp
+    popl %edx
+    popl %edx
+    popl %edx
+    
+    popl %edx
+    popl %ebx
+    
+    cmpl $0, %eax
+    jne _loop_find_env
+    
+    mov (%ebx, %edx), %eax
+    
+    addl $9, %eax
+    pushl %eax
+    call atoi
+    popl %ebx
+    movl %eax, buf_size
+    call print_num
+   
+    
   #получем параметры командной строки
     movl 4(%ebp), %eax
     cmp $1, %eax
@@ -332,6 +385,7 @@ main:
     
     cmp $0, %eax
     jne _wrong_arg
+    
   #выставляем флаг слабого палиндрома в состояние "нужно искать"
     movl $1, %eax
     movl %eax, weak_flag
@@ -342,8 +396,9 @@ _wrong_arg:
     call print_str
     jmp _exit
     
-    
 _main_loop:
+    movl buf_size, %eax
+    call print_num
   #считать строку из stdin
     movl $str1, %eax
     call read_str
@@ -380,5 +435,3 @@ _exit:
     addl $4, %esp
     xorl %eax, %eax
     call exit
-    
-.bss
