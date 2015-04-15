@@ -327,9 +327,9 @@ main:
     movl %esp, %ebp #for correct debugging
     
   #ищем MAX_BUF среди переменных окружения  
-    movl environ, %ebx
+    movl 12(%ebp), %ebx
     
-  #%edx счетчик,  пробегающий все строки из environ
+  #%edx счетчик,  пробегающий все строки-переменные окружения
     movl $-4, %edx
 _loop_find_env:
     addl $4, %edx
